@@ -29,7 +29,19 @@
     },
     "plugins": [
       "expo-router",
-      "expo-font"
+      "expo-font",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "PlantPal needs camera access to scan and identify your plants."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "PlantPal needs photo library access so you can pick a plant photo to scan."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

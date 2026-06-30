@@ -37,3 +37,44 @@ CREATE POLICY "Users can update own plants"
 CREATE POLICY "Users can delete own plants"
   ON public.plants FOR DELETE
   USING (auth.uid() = user_id);
+
+-- ─── User profiles (XP totals) ───────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS public.profiles (
+  id         UUID    PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  total_xp   INTEGER NOT NULL DEFAULT 0 CHECK (total_xp >= 0),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can view own profile"
+  ON public.profiles FOR SELECT USING (auth.uid() = id);
+
+CREATE POLICY "Users can insert own profile"
+  ON public.profiles FOR INSERT WITH CHECK (auth.uid() = id);
+
+CREATE POLICY "Users can update own profile"
+  ON public.profiles FOR UPDATE USING (auth.uid() = id);
+
+-- Atomic XP increment: inserts the profile row on first scan, increments on subsequent ones.
+-- Call from client: supabase.rpc('increment_xp', { xp_amount: 30 })
+CREATE OR REPLACE FUNCTION public.increment_xp(xp_amount INTEGER)
+RETURNS INTEGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  new_total INTEGER;
+BEGIN
+  INSERT INTO public.profiles (id, total_xp)
+  VALUES (auth.uid(), xp_amount)
+  ON CONFLICT (id) DO UPDATE
+    SET total_xp = profiles.total_xp + xp_amount
+  RETURNING total_xp INTO new_total;
+  RETURN new_total;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.increment_xp(INTEGER) TO authenticated;

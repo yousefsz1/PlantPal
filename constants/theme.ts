@@ -21,6 +21,7 @@ export const Colors = {
   rare: '#9B59B6',
   danger: '#E74C3C',
   warning: '#F39C12',
+  serious: '#E67E22',
 
   // UI
   border: '#1F4A2F',
