@@ -15,16 +15,63 @@ export default function RootLayout() {
 
   // Load session once on mount, then subscribe to changes
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
-      setInitialized(true);
-    });
+    let mounted = true;
+    let settled = false;
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, s) => {
+    // Called by whichever path wins: getSession(), INITIAL_SESSION event, or timeout.
+    // The `settled` flag ensures we only initialize once.
+    function settle(s: Session | null) {
+      if (!mounted || settled) return;
+      settled = true;
       setSession(s);
+      setInitialized(true);
+    }
+
+    // Safety net: if getSession() hangs (e.g. token refresh times out on first load),
+    // fall back to the login screen after 5 seconds instead of spinning forever.
+    const timeout = setTimeout(() => {
+      console.warn('[Auth] Session check timed out — falling back to login');
+      settle(null);
+    }, 5000);
+
+    // Primary path: read the stored session.
+    supabase.auth.getSession()
+      .then(({ data, error }) => {
+        clearTimeout(timeout);
+        if (error) {
+          console.warn('[Auth] getSession error:', error.message);
+          settle(null);
+        } else {
+          settle(data.session);
+        }
+      })
+      .catch((err) => {
+        // getSession() rejected — treat as unauthenticated.
+        clearTimeout(timeout);
+        console.warn('[Auth] getSession threw unexpectedly:', err);
+        settle(null);
+      });
+
+    // Subscribe to subsequent auth changes (sign-in, sign-out, token refresh).
+    // Also acts as a secondary initializer: if INITIAL_SESSION fires before
+    // getSession() resolves (can happen with the sb_publishable_ key), settle here.
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, s) => {
+      if (!mounted) return;
+      if (!settled) {
+        // INITIAL_SESSION or early SIGNED_OUT — treat this as initialization
+        clearTimeout(timeout);
+        settle(s);
+      } else {
+        // Regular state change after init (sign-in, sign-out, token refresh)
+        setSession(s);
+      }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      mounted = false;
+      clearTimeout(timeout);
+      subscription.unsubscribe();
+    };
   }, []);
 
   // Redirect based on auth state once we know the session
