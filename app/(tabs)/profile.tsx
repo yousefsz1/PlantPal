@@ -1,7 +1,11 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { supabase } from '../../lib/supabase';
 import { Colors, Spacing, Radius, FontSize } from '../../constants/theme';
+import { useEffect } from 'react';
+import type { User } from '@supabase/supabase-js';
 
 const BADGES = [
   { id: '1', icon: 'leaf',    label: 'First Plant', unlocked: true },
@@ -13,13 +17,38 @@ const BADGES = [
 ] as const;
 
 const MENU_ITEMS = [
-  { icon: 'settings-outline',       label: 'Settings' },
-  { icon: 'notifications-outline',  label: 'Reminders' },
-  { icon: 'share-social-outline',   label: 'Share Profile' },
-  { icon: 'help-circle-outline',    label: 'Help & FAQ' },
+  { icon: 'settings-outline',      label: 'Settings' },
+  { icon: 'notifications-outline', label: 'Reminders' },
+  { icon: 'share-social-outline',  label: 'Share Profile' },
+  { icon: 'help-circle-outline',   label: 'Help & FAQ' },
 ] as const;
 
 export default function ProfileScreen() {
+  const [user, setUser] = useState<User | null>(null);
+  const [signingOut, setSigningOut] = useState(false);
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => setUser(data.user));
+  }, []);
+
+  async function handleSignOut() {
+    Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Sign Out',
+        style: 'destructive',
+        onPress: async () => {
+          setSigningOut(true);
+          await supabase.auth.signOut();
+          // Navigation back to auth happens automatically via onAuthStateChange in _layout.tsx
+        },
+      },
+    ]);
+  }
+
+  const displayEmail = user?.email ?? '—';
+  const displayName = user?.user_metadata?.display_name ?? displayEmail.split('@')[0];
+
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <ScrollView contentContainerStyle={styles.content}>
@@ -28,7 +57,8 @@ export default function ProfileScreen() {
           <View style={styles.avatar}>
             <Ionicons name="person" size={40} color={Colors.primary} />
           </View>
-          <Text style={styles.username}>PlantPal Trainer</Text>
+          <Text style={styles.username}>{displayName}</Text>
+          <Text style={styles.userEmail}>{displayEmail}</Text>
           <View style={styles.rankBadge}>
             <Ionicons name="leaf" size={12} color={Colors.primary} />
             <Text style={styles.rankText}>Green Thumb • Rank 3</Text>
@@ -63,7 +93,7 @@ export default function ProfileScreen() {
           ))}
         </View>
 
-        {/* Menu */}
+        {/* Account menu */}
         <Text style={styles.sectionTitle}>Account</Text>
         {MENU_ITEMS.map((item) => (
           <TouchableOpacity key={item.label} style={styles.menuRow}>
@@ -72,6 +102,21 @@ export default function ProfileScreen() {
             <Ionicons name="chevron-forward" size={16} color={Colors.textMuted} />
           </TouchableOpacity>
         ))}
+
+        {/* Sign Out */}
+        <TouchableOpacity
+          style={styles.signOutBtn}
+          onPress={handleSignOut}
+          disabled={signingOut}
+          activeOpacity={0.75}
+        >
+          {signingOut ? (
+            <ActivityIndicator size="small" color={Colors.danger} />
+          ) : (
+            <Ionicons name="log-out-outline" size={20} color={Colors.danger} />
+          )}
+          <Text style={styles.signOutText}>Sign Out</Text>
+        </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
   );
@@ -94,11 +139,11 @@ const styles = StyleSheet.create({
     borderColor: Colors.primary,
   },
   username: { fontSize: FontSize.xl, fontWeight: '700', color: Colors.textPrimary },
+  userEmail: { fontSize: FontSize.sm, color: Colors.textMuted, marginTop: 2, marginBottom: 6 },
   rankBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    marginTop: 4,
     backgroundColor: Colors.surfaceElevated,
     paddingHorizontal: Spacing.sm,
     paddingVertical: 4,
@@ -167,4 +212,18 @@ const styles = StyleSheet.create({
     borderColor: Colors.border,
   },
   menuLabel: { flex: 1, fontSize: FontSize.md, color: Colors.textPrimary },
+
+  signOutBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.sm,
+    marginTop: Spacing.md,
+    padding: Spacing.md,
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    borderColor: Colors.danger,
+    backgroundColor: '#1A0A0A',
+  },
+  signOutText: { fontSize: FontSize.md, fontWeight: '600', color: Colors.danger },
 });
