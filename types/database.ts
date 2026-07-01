@@ -12,6 +12,9 @@ export type Database = {
           health_percent: number;
           last_watered: string | null;
           created_at: string;
+          watering_frequency: 'daily' | 'weekly' | 'monthly' | null;
+          sunlight: 'low' | 'medium' | 'bright' | null;
+          notes: string | null;
         };
         Insert: {
           id?: string;
@@ -23,6 +26,9 @@ export type Database = {
           health_percent?: number;
           last_watered?: string | null;
           created_at?: string;
+          watering_frequency?: 'daily' | 'weekly' | 'monthly' | null;
+          sunlight?: 'low' | 'medium' | 'bright' | null;
+          notes?: string | null;
         };
         Update: {
           id?: string;
@@ -34,6 +40,9 @@ export type Database = {
           health_percent?: number;
           last_watered?: string | null;
           created_at?: string;
+          watering_frequency?: 'daily' | 'weekly' | 'monthly' | null;
+          sunlight?: 'low' | 'medium' | 'bright' | null;
+          notes?: string | null;
         };
       };
     };

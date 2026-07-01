@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { supabase } from '../../lib/supabase';
 import type { Plant } from '../../types/database';
 import { Colors, Spacing, Radius, FontSize } from '../../constants/theme';
@@ -64,10 +65,12 @@ function EmptyGarden({ onAddFirst }: { onAddFirst: () => void }) {
 }
 
 export default function GardenScreen() {
+  const router = useRouter();
   const [plants, setPlants] = useState<Plant[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const hasLoaded = useRef(false);
 
   const totalXP = plants.reduce((sum, p) => sum + p.xp, 0);
 
@@ -85,9 +88,18 @@ export default function GardenScreen() {
     }
   }, []);
 
-  useEffect(() => {
-    fetchPlants().finally(() => setLoading(false));
-  }, [fetchPlants]);
+  // Show loading spinner only on the first load; silently refresh on re-focus
+  useFocusEffect(
+    useCallback(() => {
+      if (!hasLoaded.current) {
+        setLoading(true);
+      }
+      fetchPlants().finally(() => {
+        setLoading(false);
+        hasLoaded.current = true;
+      });
+    }, [fetchPlants]),
+  );
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -95,9 +107,8 @@ export default function GardenScreen() {
     setRefreshing(false);
   }, [fetchPlants]);
 
-  const handleAddFirst = () => {
-    // TODO: navigate to add-plant screen
-  };
+  const openAddPlant = useCallback(() => router.push('/add-plant'), [router]);
+  const handleAddFirst = openAddPlant;
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -118,7 +129,7 @@ export default function GardenScreen() {
             <Text style={styles.greeting}>Good morning 🌱</Text>
             <Text style={styles.title}>My Garden</Text>
           </View>
-          <TouchableOpacity style={styles.addBtn}>
+          <TouchableOpacity style={styles.addBtn} onPress={openAddPlant}>
             <Ionicons name="add" size={24} color={Colors.textPrimary} />
           </TouchableOpacity>
         </View>

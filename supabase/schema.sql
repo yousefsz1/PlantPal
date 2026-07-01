@@ -78,3 +78,13 @@ END;
 $$;
 
 GRANT EXECUTE ON FUNCTION public.increment_xp(INTEGER) TO authenticated;
+
+-- ─── Plants table: new care columns ─────────────────────────────────────────
+-- Run only on an existing DB (safe to re-run; IF NOT EXISTS guards each column)
+
+ALTER TABLE public.plants
+  ADD COLUMN IF NOT EXISTS watering_frequency TEXT
+    CHECK (watering_frequency IN ('daily', 'weekly', 'monthly')),
+  ADD COLUMN IF NOT EXISTS sunlight TEXT
+    CHECK (sunlight IN ('low', 'medium', 'bright')),
+  ADD COLUMN IF NOT EXISTS notes TEXT;

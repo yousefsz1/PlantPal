@@ -55,7 +55,7 @@ export default function RootLayout() {
     // Subscribe to subsequent auth changes (sign-in, sign-out, token refresh).
     // Also acts as a secondary initializer: if INITIAL_SESSION fires before
     // getSession() resolves (can happen with the sb_publishable_ key), settle here.
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, s) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, s) => {
       if (!mounted) return;
       if (!settled) {
         // INITIAL_SESSION or early SIGNED_OUT — treat this as initialization
@@ -81,9 +81,12 @@ export default function RootLayout() {
     const inTabs = segments[0] === '(tabs)';
     const onAuth = segments[0] === 'auth';
 
+    // Unauthenticated users can only be on the auth screen
     if (!session && !onAuth) {
       router.replace('/auth');
-    } else if (session && !inTabs) {
+    }
+    // Authenticated users on the auth screen go to tabs; modals (/add-plant etc.) are left alone
+    if (session && onAuth) {
       router.replace('/(tabs)');
     }
   }, [session, initialized, segments]);
@@ -103,6 +106,7 @@ export default function RootLayout() {
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="auth" options={{ animation: 'fade' }} />
+        <Stack.Screen name="add-plant" options={{ presentation: 'modal' }} />
       </Stack>
     </>
   );
