@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -79,9 +80,13 @@ function PlantCard({ plant, pendingTasks }: { plant: Plant; pendingTasks: CareTa
 
   return (
     <View style={styles.plantCard}>
-      <View style={styles.plantMoodWrap}>
-        <Text style={styles.plantMood}>{emoji}</Text>
-      </View>
+      {plant.photo_url ? (
+        <Image source={{ uri: plant.photo_url }} style={styles.plantPhoto} resizeMode="cover" />
+      ) : (
+        <View style={styles.plantMoodWrap}>
+          <Text style={styles.plantMood}>{emoji}</Text>
+        </View>
+      )}
       <View style={styles.plantInfo}>
         <View style={styles.plantRow}>
           <View style={{ flex: 1 }}>
@@ -436,6 +441,12 @@ const styles = StyleSheet.create({
     gap: Spacing.md,
     borderWidth: 1,
     borderColor: Colors.border,
+  },
+  plantPhoto: {
+    width: 52,
+    height: 52,
+    borderRadius: Radius.md,
+    backgroundColor: Colors.surfaceElevated,
   },
   plantMoodWrap: {
     width: 52,

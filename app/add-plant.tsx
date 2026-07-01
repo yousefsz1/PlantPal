@@ -13,6 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
+import * as ImageManipulator from 'expo-image-manipulator';
 import { supabase } from '../lib/supabase';
 import { requestNotificationPermission, scheduleTaskNotification } from '../lib/notifications';
 import { Colors, Spacing, Radius, FontSize } from '../constants/theme';
@@ -48,18 +49,29 @@ export default function AddPlantScreen() {
   const router = useRouter();
   const [phase, setPhase] = useState<Phase>('capture');
   const [photoUri, setPhotoUri] = useState<string | null>(null);
+  const [compressed, setCompressed] = useState<{ uri: string; base64: string } | null>(null);
   const [detected, setDetected] = useState<DetectedPlant | null>(null);
   const [analyzeError, setAnalyzeError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
-  const runAnalysis = useCallback(async (uri: string, base64: string, mediaType: string) => {
+  const runAnalysis = useCallback(async (uri: string) => {
     setPhotoUri(uri);
     setPhase('analyzing');
     setAnalyzeError(null);
+    setCompressed(null);
     try {
+      // Compress: resize to max 1024px wide, 80% JPEG — brings 5-8 MB down to ~200-500 KB
+      const result = await ImageManipulator.manipulateAsync(
+        uri,
+        [{ resize: { width: 1024 } }],
+        { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG, base64: true },
+      );
+      const compressedBase64 = result.base64!;
+      setCompressed({ uri: result.uri, base64: compressedBase64 });
+
       const { data, error } = await supabase.functions.invoke('detect-plant', {
-        body: { image: base64, mediaType },
+        body: { image: compressedBase64, mediaType: 'image/jpeg' },
       });
       if (error) throw new Error(error.message);
       if (data?.error) throw new Error(data.error);
@@ -77,10 +89,9 @@ export default function AddPlantScreen() {
       Alert.alert('Permission needed', 'Camera access is required to take a plant photo.');
       return;
     }
-    const result = await ImagePicker.launchCameraAsync({ base64: true, quality: 0.5 });
-    if (result.canceled || !result.assets?.[0]?.base64) return;
-    const asset = result.assets[0];
-    await runAnalysis(asset.uri, asset.base64!, 'image/jpeg');
+    const result = await ImagePicker.launchCameraAsync({ quality: 1.0 });
+    if (result.canceled || !result.assets?.[0]) return;
+    await runAnalysis(result.assets[0].uri);
   }, [runAnalysis]);
 
   const handlePickImage = useCallback(async () => {
@@ -91,15 +102,10 @@ export default function AddPlantScreen() {
     }
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
-      base64: true,
-      quality: 0.5,
+      quality: 1.0,
     });
-    if (result.canceled || !result.assets?.[0]?.base64) return;
-    const asset = result.assets[0];
-    const mt = ['image/jpeg', 'image/png', 'image/webp'].includes(asset.mimeType ?? '')
-      ? asset.mimeType!
-      : 'image/jpeg';
-    await runAnalysis(asset.uri, asset.base64!, mt);
+    if (result.canceled || !result.assets?.[0]) return;
+    await runAnalysis(result.assets[0].uri);
   }, [runAnalysis]);
 
   const handleSave = useCallback(async () => {
@@ -114,6 +120,24 @@ export default function AddPlantScreen() {
       const fDays = Math.max(1, Math.round(detected.fertilizingDays || 14));
       const mDays = detected.mistingDays != null ? Math.max(1, Math.round(detected.mistingDays)) : null;
 
+      // Upload compressed photo to Supabase Storage (non-fatal if it fails)
+      let photoUrl: string | null = null;
+      if (compressed?.base64) {
+        try {
+          const bytes = Uint8Array.from(atob(compressed.base64), c => c.charCodeAt(0));
+          const storagePath = `${user.id}/${Date.now()}.jpg`;
+          const { data: up, error: upErr } = await supabase.storage
+            .from('plant-images')
+            .upload(storagePath, bytes, { contentType: 'image/jpeg', upsert: false });
+          if (!upErr && up) {
+            const { data: urlData } = supabase.storage.from('plant-images').getPublicUrl(up.path);
+            photoUrl = urlData.publicUrl;
+          }
+        } catch {
+          // Upload failed — plant is still saved, just without a photo
+        }
+      }
+
       const { data: plant, error: plantErr } = await supabase
         .from('plants')
         .insert({
@@ -126,6 +150,7 @@ export default function AddPlantScreen() {
           temperature_range: detected.temperature,
           care_tip: detected.careTip,
           health_percent: 100,
+          photo_url: photoUrl,
         })
         .select('id')
         .single();

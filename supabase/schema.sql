@@ -186,3 +186,44 @@ END;
 $$;
 
 GRANT EXECUTE ON FUNCTION public.complete_care_task(UUID) TO authenticated;
+
+-- ─── Storage bucket: plant-images ─────────────────────────────────────────────
+-- Public bucket (images are served via public URL); uploads are restricted by RLS.
+
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES (
+  'plant-images',
+  'plant-images',
+  true,
+  5242880,
+  ARRAY['image/jpeg', 'image/png', 'image/webp']::text[]
+)
+ON CONFLICT (id) DO NOTHING;
+
+-- Public read (bucket is public, so anyone with the URL can load the image)
+CREATE POLICY IF NOT EXISTS "plant_images_public_read"
+  ON storage.objects FOR SELECT
+  USING (bucket_id = 'plant-images');
+
+-- Authenticated users can upload only into their own user-ID sub-folder
+CREATE POLICY IF NOT EXISTS "plant_images_auth_upload"
+  ON storage.objects FOR INSERT
+  TO authenticated
+  WITH CHECK (
+    bucket_id = 'plant-images' AND
+    (storage.foldername(name))[1] = auth.uid()::text
+  );
+
+-- Authenticated users can delete only their own images
+CREATE POLICY IF NOT EXISTS "plant_images_auth_delete"
+  ON storage.objects FOR DELETE
+  TO authenticated
+  USING (
+    bucket_id = 'plant-images' AND
+    (storage.foldername(name))[1] = auth.uid()::text
+  );
+
+-- ─── Plants table: photo URL ──────────────────────────────────────────────────
+
+ALTER TABLE public.plants
+  ADD COLUMN IF NOT EXISTS photo_url TEXT;

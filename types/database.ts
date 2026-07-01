@@ -18,6 +18,7 @@ export type Database = {
           soil_type: string | null;
           temperature_range: string | null;
           care_tip: string | null;
+          photo_url: string | null;
         };
         Insert: {
           id?: string;
@@ -35,6 +36,7 @@ export type Database = {
           soil_type?: string | null;
           temperature_range?: string | null;
           care_tip?: string | null;
+          photo_url?: string | null;
         };
         Update: {
           id?: string;
@@ -52,6 +54,7 @@ export type Database = {
           soil_type?: string | null;
           temperature_range?: string | null;
           care_tip?: string | null;
+          photo_url?: string | null;
         };
         Relationships: [];
       };
